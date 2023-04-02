@@ -42,9 +42,9 @@ def fetch_file(url, filepath):
 def verify_file(filepath, oid, oid_type):
     if oid_type == "sha256":
         hasher = hashlib.sha256()
-    elif oid_type == "sha1"
+    elif oid_type == "sha1":
         hasher = haslib.sha1()
-    elif oid_type == "md5"
+    elif oid_type == "md5":
         hasher = haslib.md5()
     else:
         print(f"Unsupported oid_type: {oid_type}")
@@ -89,7 +89,7 @@ def main():
             [
                "chcon",
                "-t", "container_file_t",
-               "-l", "s0:c42",
+               "-l", "s0",
                "-R", ".",
            ],
            cwd=str(build_path),
