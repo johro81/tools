@@ -27,10 +27,19 @@ should be found from the base directory.
 
 ### Using the tool to build ###
 
-For the actual build process:
+Preparations:
 
     $ git clone git@github.com:johro81/rush.git
     $ cd rush
+
+If a local image is used in the kube.yaml an image has to be built locally.
+This should be the exception and not the rule. Make sure the tag matches
+the image used.
+
+    $ podman build --tag build -f Dockerfile
+
+For the actual build process:
+
     $ build_rpm .
     $ find ./dist
 
