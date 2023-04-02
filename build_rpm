@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+from pathlib import Path
+from subprocess import PIPE, Popen, run
+
+import argparse
+import hashlib
+import os
+import sys
+
+try:
+    import requests
+except ModuleNotFoundError:
+    print(
+        "Missing module request, install with\n\n"
+        "  $ sudo dnf install python3-requests\n"
+    )
+    sys.exit(1)
+
+try:
+    import yaml
+except ModuleNotFoundError:
+    print(
+        "Missing module yaml, install with\n\n"
+        "$ sudo dnf install python3-pyyaml\n"
+    )
+    sys.exit(1)
+
+
+def fetch_file(url, filepath):
+    if filepath.is_file():
+        print(f"File {filepath.name} already downloaded")
+        return
+
+    print(f"Fetching {filepath.name} from {url}")
+    with requests.get(url, stream=True) as req:
+        req.raise_for_status()
+        with open(filepath, 'wb') as fd:
+            for chunk in req.iter_content(chunk_size=16384):
+                fd.write(chunk)
+
+
+def verify_file(filepath, oid, oid_type):
+    if oid_type == "sha256":
+        hasher = hashlib.sha256()
+    elif oid_type == "sha1"
+        hasher = haslib.sha1()
+    elif oid_type == "md5"
+        hasher = haslib.md5()
+    else:
+        print(f"Unsupported oid_type: {oid_type}")
+        sys.exit(1)
+
+    with open(filepath, "rb") as fd:
+        for chunk in iter(lambda: fd.read(16384), b""):
+            hasher.update(chunk)
+
+    if hasher.hexdigest() != oid:
+        print(f"Checksum missmatch for {filepath.name}")
+        return False
+    return True
+
+
+args = {}
+def parse_args():
+    global args
+    parser = argparse.ArgumentParser()
+    parser.add_argument("path", help="Relative path to build directory")
+    args = parser.parse_args()
+
+
+def main():
+    success = True
+    parse_args()
+    build_path = Path.cwd() / args.path
+    tpp_path = build_path / "3pp"
+
+    if tpp_path.exists():
+        for file in yaml.safe_load((tpp_path / 'files').read_text())['files']:
+            fetch_file(file['url'], tpp_path / file['name'])
+            if not verify_file(tpp_path / file['name'], file['oid'], file['oid_type']):
+                success = False
+
+    if not success:
+        sys.exit(1)
+
+    try:
+        run(["podman", "kube", "down", "kube.yaml"], cwd=str(build_path))
+        run(
+            [
+               "chcon",
+               "-t", "container_file_t",
+               "-l", "s0:c42",
+               "-R", ".",
+           ],
+           cwd=str(build_path),
+           check=True,
+        )
+        output = run(
+            [
+                "podman", "kube", "play",
+                "--network", "none",
+                "--userns", "keep-id:uid=1000",
+                "kube.yaml",
+            ],
+            cwd=str(build_path),
+            check=True,
+            capture_output=True,
+        )
+        container_id = output.stdout.decode("utf-8").split()[3]
+        process = Popen(["podman", "attach", container_id], stdout=PIPE, stderr=sys.stdout)
+
+        for line in iter(process.stdout.readline, b''):
+            print(line.decode('utf-8').strip())
+    except Exception:
+        raise
+    else:
+        run(["podman", "kube", "down", "kube.yaml"], cwd=str(build_path))
+
+
+if __name__ == "__main__":
+    main()
